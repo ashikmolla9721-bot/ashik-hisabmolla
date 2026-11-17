@@ -1,0 +1,66 @@
+# Codemagic workflow for building আশিক হিসাব APK
+# Put this file at the ROOT of your GitHub repository.
+
+workflows:
+  ashik-hisab-apk:
+    name: Ashik Hisab APK Build
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      java: 17
+    cache:
+      cache_paths:
+        - $HOME/.gradle/caches
+    scripts:
+      - name: Setup project
+        script: |
+          set -e
+          if [ ! -f pubspec.yaml ] && [ -f ashik_hisab/pubspec.yaml ]; then
+            cd ashik_hisab
+          fi
+          pwd && ls
+          flutter --version
+          flutter config --no-analytics
+
+          # Generate Android platform files
+          flutter create . --org com.ashik --project-name ashik_hisab --platforms android
+
+          # Bengali launcher name
+          sed -i.bak 's/android:label="ashik_hisab"/android:label="আশিক হিসাব"/' android/app/src/main/AndroidManifest.xml
+          grep 'android:label' android/app/src/main/AndroidManifest.xml
+
+          # Give Gradle enough memory
+          echo "org.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=1G" >> android/gradle.properties
+          echo "android.useAndroidX=true" >> android/gradle.properties
+
+          flutter pub get
+          echo "=== Setup OK ==="
+      - name: Accept Android SDK licenses
+        script: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+      - name: Build release APK
+        script: |
+          set -e
+          if [ ! -f pubspec.yaml ] && [ -f ashik_hisab/pubspec.yaml ]; then
+            cd ashik_hisab
+          fi
+
+          flutter build apk --release
+
+          ls -la build/app/outputs/flutter-apk/
+
+          # Copy the APK to the repo root so Codemagic can always find it
+          cp build/app/outputs/flutter-apk/app-release.apk ../Ashik-Hisab.apk
+          ls -la ../Ashik-Hisab.apk
+          echo "=== APK READY ==="
+    artifacts:
+      - Ashik-Hisab.apk
+      - build/app/outputs/flutter-apk/*.apk
+      - ashik_hisab/build/app/outputs/flutter-apk/*.apk
+    publishing:
+      email:
+        recipients:
+          - ashikbd9421@gmail.com
+        notify:
+          success: true
+          failure: true
